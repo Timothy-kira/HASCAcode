@@ -87,6 +87,12 @@ def context(P0, Fimu, pairs, V, sbj):
               "knn_p": Wk @ P0, "knn2_p": Wk @ (Wk @ P0), "both_logp": Wb @ L,
               "both_imu": Wb @ Fimu, "both2_imu": Wb @ (Wb @ Fimu), "knn_imu": Wk @ Fimu,
               "deg": np.c_[np.asarray((Ws > 0).sum(1)).ravel(), np.asarray((Wp > 0).sum(1)).ravel()]}
+    if "assigned" in pairs:  # hard one-to-one successor edges from the Hungarian assignment (chain v3+)
+        a = pairs[pairs.assigned == 1]
+        Wa = sp.csr_matrix((np.ones(len(a)), (a.gi.values, a.gj.values)), (n, n))
+        ha = hops(rownorm(Wa + Wa.T), P0, [1, 2, 4, 8, 16])
+        blocks.update({f"asg{k}_p": ha[k] for k in ha})
+        blocks["asg_succ_p"] = rownorm(Wa) @ P0; blocks["asg_pred_p"] = rownorm(Wa.T.tocsr()) @ P0
     names = [f"{k}_{i}" for k, v in blocks.items() for i in range(v.shape[1])]
     return np.concatenate([np.asarray(v, dtype=np.float32) for v in blocks.values()], 1), names
 

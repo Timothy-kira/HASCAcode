@@ -1,155 +1,154 @@
 # %% [markdown]
-# # WEAR 2026 — Step D2: learned successor model -> chains -> smoothing along time
-# 1. Candidates: for each tile i, top-K tiles j (same subject) by whitened cos(last frame i, first frame j).
-# 2. Pair features (video similarities, mutual ranks, motion continuity, IMU boundary continuity, base-prob agreement) -> LightGBM
-#    "is j the successor of i" (trained on simulated test tiles of train subjects, subject-grouped OOF).
-# 3. Greedy linking by descending probability (each tile at most one succ/pred, no cycles) -> chains.
-# 4. Smooth class probabilities along chains + successor graph; evaluate OOF macro-F1; apply to test.
+# # WEAR 2026 — Step D2 (v3): learned successor model -> global assignment
+# 1. Per subject, whitened VideoMAE embeddings of each tile's first/last/mean frames.
+# 2. A ridge "next-frame predictor" (trained on other subjects' consecutive tiles, subject-grouped folds) predicts
+#    tile t+1's first frame from tile t; cos(prediction, first frame of j) is a dynamics-aware match score.
+# 3. Candidates = union of top-K by plain last->first similarity and by predicted similarity.
+# 4. Pair features -> LightGBM "is j the successor of i" (subject-grouped OOF).
+# 5. Global one-to-one assignment per subject (Hungarian on -log p) -> hard successor edges.
+# Outputs tr_pairs / te_pairs (gi, gj, p, assigned) consumed by stage2.
 
 # %%
 import glob, os, time
 import numpy as np, pandas as pd, lightgbm as lgb
+from scipy.optimize import linear_sum_assignment
+from sklearn.linear_model import Ridge
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.model_selection import GroupKFold
 
 def find(name): return os.path.dirname(glob.glob(f"/kaggle/input/**/{name}", recursive=True)[0])
 P, B = find("tr_meta.csv"), find("oof_lgb.npy")
 OUT = "/kaggle/working"; LOCS = ["left_arm", "left_leg", "right_arm", "right_leg"]
-K = 50
+K, NC = 40, 256
 tr_meta = pd.read_csv(f"{P}/tr_meta.csv"); te_meta = pd.read_csv(f"{P}/te_meta.csv")
 tr_imu = np.load(f"{P}/tr_imu.npy"); te_imu = np.load(f"{P}/te_imu.npy")
 tr_vid = np.load(f"{P}/tr_vid.npy", mmap_mode="r"); te_vid = np.load(f"{P}/te_vid.npy", mmap_mode="r")
 eval_loc = np.load(f"{B}/eval_loc.npy"); oof = np.load(f"{B}/oof_lgb.npy"); pte = np.load(f"{B}/te_lgb.npy")
 te_loc = te_meta.sensor_location.map({l: i for i, l in enumerate(LOCS)}).to_numpy()
-y = tr_meta.label.values
-tr_x = tr_imu[np.arange(len(tr_meta)), eval_loc].astype(np.float32)  # the single sensor the "test-like" view sees
+tr_x = tr_imu[np.arange(len(tr_meta)), eval_loc].astype(np.float32)
+tr_sbj, te_sbj = tr_meta.sbj.values, te_meta.sbj_id.values
+nxt_ok = np.r_[tr_meta.file_id.values[1:] == tr_meta.file_id.values[:-1], False]  # tile i has a true successor i+1
 
 # %%
 def norm(a): return a / (np.linalg.norm(a, axis=-1, keepdims=True) + 1e-8)
 
-def subject_pairs(V, X, loc, P0, n_comp=256):
-    """Candidate pairs + features for one subject. V (n,15,768), X (n,50,3) single-sensor IMU, loc (n,), P0 (n,19) base probs."""
-    V = np.asarray(V, dtype=np.float32); n = len(V)
-    mean = V.mean(1); mu = mean.mean(0)
+def subject_emb(V):
+    V = np.asarray(V, dtype=np.float32); mean = V.mean(1); mu = mean.mean(0)
     _, S, Vt = np.linalg.svd(mean - mu, full_matrices=False)
-    W = Vt[:n_comp].T / (S[:n_comp] / np.sqrt(n) + 1e-6)
-    w = lambda x: norm((x - mu) @ W)
-    first, last, f1_, l1_, m = w(V[:, 0]), w(V[:, -1]), w(V[:, 1]), w(V[:, -2]), w(mean)
-    rawc = lambda x: norm(x - mu)
-    rfirst, rlast = rawc(V[:, 0]), rawc(V[:, -1])
-    vel = (V[:, -1] - V[:, -5]) @ W  # whitened motion at the end of tile i
+    W = Vt[:NC].T / (S[:NC] / np.sqrt(len(V)) + 1e-6)
+    w = lambda x: (x - mu) @ W
+    E = dict(first=w(V[:, 0]), last=w(V[:, -1]), f1=w(V[:, 1]), l1=w(V[:, -2]), mean=w(mean), l5=w(V[:, -5]))
+    E["rf"], E["rl"] = norm(V[:, 0] - mu), norm(V[:, -1] - mu)
+    return E
+
+def ridge_in(E): return np.c_[E["last"], E["last"] - E["l5"], E["mean"]]
+
+t0 = time.time()
+tr_E = {s: subject_emb(tr_vid[tr_sbj == s]) for s in np.unique(tr_sbj)}
+te_E = {s: subject_emb(te_vid[te_sbj == s]) for s in np.unique(te_sbj)}
+print("embeddings", f"{time.time()-t0:.0f}s")
+
+def fit_ridge(subjects):
+    X, Y = [], []
+    for s in subjects:
+        E = tr_E[s]; ok = nxt_ok[tr_sbj == s]
+        X.append(ridge_in(E)[ok]); Y.append(E["first"][np.r_[False, ok[:-1]]])
+    return Ridge(alpha=10.0).fit(np.concatenate(X), np.concatenate(Y))
+
+subjects = np.unique(tr_sbj)
+fold_of = {s: k for k, (_, va) in enumerate(GroupKFold(5).split(subjects, groups=subjects)) for s in subjects[va]}
+ridges = {k: fit_ridge([s for s in subjects if fold_of[s] != k]) for k in range(5)}
+ridge_all = fit_ridge(subjects)
+
+# %%
+def subject_pairs(E, X, loc, P0, ridge):
+    n = len(X)
+    first, last = norm(E["first"]), norm(E["last"])
+    pred = norm(ridge.predict(ridge_in(E)))
     S1 = last @ first.T; np.fill_diagonal(S1, -np.inf)
-    cand = np.argpartition(-S1, K, 1)[:, :K]
-    i = np.repeat(np.arange(n), K); j = cand.ravel()
-    rank_row = np.argsort(np.argsort(-S1, 1), 1)  # rank of j among successors of i
-    rank_col = np.argsort(np.argsort(-S1, 0), 0)  # rank of i among predecessors of j
-    s1 = S1[i, j]
-    endx = X[:, -1] + (X[:, -1] - X[:, -3]) / 2
-    mag = np.linalg.norm(X, axis=2)
-    same = (loc[i] == loc[j]).astype(np.float32)
+    S2 = pred @ first.T; np.fill_diagonal(S2, -np.inf)
+    c1 = np.argpartition(-S1, K, 1)[:, :K]; c2 = np.argpartition(-S2, K, 1)[:, :K]
+    cand = pd.DataFrame({"i": np.repeat(np.arange(n), 2 * K), "j": np.c_[c1, c2].ravel()}).drop_duplicates()
+    i, j = cand.i.values, cand.j.values
+    r1 = np.argsort(np.argsort(-S1, 1), 1); c1r = np.argsort(np.argsort(-S1, 0), 0)
+    r2 = np.argsort(np.argsort(-S2, 1), 1); c2r = np.argsort(np.argsort(-S2, 0), 0)
+    endx = X[:, -1] + (X[:, -1] - X[:, -3]) / 2; mag = np.linalg.norm(X, axis=2); same = (loc[i] == loc[j]).astype(np.float32)
+    f1_, l1_, m = norm(E["f1"]), norm(E["l1"]), norm(E["mean"])
     feats = dict(
-        s1=s1, rank_row=rank_row[i, j], rank_col=rank_col[i, j],
-        gap_row=np.take_along_axis(S1, cand, 1).max(1).repeat(K) - s1,
-        gap_col=np.where(np.isfinite(S1), S1, -1).max(0)[j] - s1,
-        s_inner=(l1_[i] * f1_[j]).sum(1), s_mean=(m[i] * m[j]).sum(1),
-        s_raw=(rlast[i] * rfirst[j]).sum(1), s_self_i=(first[i] * last[i]).sum(1), s_self_j=(first[j] * last[j]).sum(1),
-        vel_cos=(norm(vel[i]) * norm((V[j, 0] - V[i, -1]) @ W)).sum(1),
+        s1=S1[i, j], s2=S2[i, j], r1_row=r1[i, j], r1_col=c1r[i, j], r2_row=r2[i, j], r2_col=c2r[i, j],
+        gap1_row=S1[i].max(1) - S1[i, j], gap2_row=S2[i].max(1) - S2[i, j],
+        gap1_col=np.where(np.isfinite(S1), S1, -1).max(0)[j] - S1[i, j], gap2_col=np.where(np.isfinite(S2), S2, -1).max(0)[j] - S2[i, j],
+        s_inner=(l1_[i] * f1_[j]).sum(1), s_mean=(m[i] * m[j]).sum(1), s_raw=(E["rl"][i] * E["rf"][j]).sum(1),
+        s_self_i=(first[i] * last[i]).sum(1), s_self_j=(first[j] * last[j]).sum(1),
         same_loc=same, loc_i=loc[i], loc_j=loc[j],
         imu_gap=np.where(same > 0, np.linalg.norm(endx[i] - X[j, 0], axis=1), np.nan),
         mag_mean_diff=np.abs(mag[i].mean(1) - mag[j].mean(1)), mag_std_diff=np.abs(mag[i].std(1) - mag[j].std(1)),
         mag_edge_diff=np.abs(mag[i, -5:].mean(1) - mag[j, :5].mean(1)),
-        p_dot=(P0[i] * P0[j]).sum(1), p_same_arg=(P0[i].argmax(1) == P0[j].argmax(1)).astype(np.float32),
-        p_null_i=P0[i, 0], p_null_j=P0[j, 0], p_l1=np.abs(P0[i] - P0[j]).sum(1),
+        p_dot=(P0[i] * P0[j]).sum(1), p_null_i=P0[i, 0], p_null_j=P0[j, 0], p_l1=np.abs(P0[i] - P0[j]).sum(1),
     )
-    return i, j, pd.DataFrame(feats).astype(np.float32)
+    return i, j, pd.DataFrame(feats).astype(np.float32), (S1, S2)
 
 # %%
-t0 = time.time()
-rows = []
-for s in np.unique(tr_meta.sbj):
-    idx = np.where(tr_meta.sbj.values == s)[0]
-    i, j, Fdf = subject_pairs(tr_vid[idx], tr_x[idx], eval_loc[idx], oof[idx])
+t0 = time.time(); rows = []; retr = []
+for s in subjects:
+    idx = np.where(tr_sbj == s)[0]
+    i, j, Fdf, (S1, S2) = subject_pairs(tr_E[s], tr_x[idx], eval_loc[idx], oof[idx], ridges[fold_of[s]])
+    ok = nxt_ok[idx][:-1]; ar = np.arange(len(idx) - 1)
+    retr.append([(S1[ar, ar + 1][:, None] >= S1[ar]).all(1)[ok].mean(), (S2[ar, ar + 1][:, None] >= S2[ar]).all(1)[ok].mean()])
     gi, gj = idx[i], idx[j]
-    Fdf["target"] = ((gj == gi + 1) & (tr_meta.file_id.values[gi] == tr_meta.file_id.values[np.minimum(gi + 1, len(tr_meta) - 1)])).astype(np.int8)
-    Fdf["gi"], Fdf["gj"], Fdf["sbj"] = gi, gj, s
+    Fdf["target"] = ((gj == gi + 1) & nxt_ok[gi]).astype(np.int8); Fdf["gi"], Fdf["gj"], Fdf["sbj"] = gi, gj, s
     rows.append(Fdf)
 pairs = pd.concat(rows, ignore_index=True)
 FEATS = [c for c in pairs.columns if c not in ("target", "gi", "gj", "sbj")]
-print("pairs", pairs.shape, "positives", pairs.target.sum(), "recall@K", round(pairs.target.sum() / len(tr_meta), 3), f"{time.time()-t0:.0f}s")
+print("raw top1: plain", np.mean(retr, 0)[0].round(3), "| ridge-predicted", np.mean(retr, 0)[1].round(3))
+print("pairs", pairs.shape, "recall@cand", round(pairs.target.sum() / nxt_ok.sum(), 3), f"{time.time()-t0:.0f}s")
 
 # %%
 params = dict(objective="binary", learning_rate=0.05, num_leaves=63, min_data_in_leaf=100, feature_fraction=0.8,
               bagging_fraction=0.8, bagging_freq=1, verbose=-1, num_threads=os.cpu_count())
 pairs["p"] = 0.0
-for k, (tri, vai) in enumerate(GroupKFold(5).split(pairs, groups=pairs.sbj)):
-    m = lgb.train(params, lgb.Dataset(pairs.loc[tri, FEATS], pairs.target.values[tri]), 600)
-    pairs.loc[vai, "p"] = m.predict(pairs.loc[vai, FEATS])
+for k in range(5):
+    va = pairs.sbj.map(fold_of).values == k
+    m = lgb.train(params, lgb.Dataset(pairs.loc[~va, FEATS], pairs.target.values[~va]), 600)
+    pairs.loc[va, "p"] = m.predict(pairs.loc[va, FEATS])
 print("pair AUC", round(roc_auc_score(pairs.target, pairs.p), 4))
 top = pairs.loc[pairs.groupby("gi").p.idxmax()]
-print("reranked top1 successor acc:", round(top.target.mean(), 4), "| raw top1:", round(pairs.loc[pairs.rank_row == 0, "target"].mean(), 4))
-imp = pd.Series(m.feature_importance("gain"), FEATS).sort_values(ascending=False); print(imp.round(0).to_dict())
+print("reranked top1 successor acc (all tiles):", round(top.target.sum() / nxt_ok.sum(), 4))
+print(pd.Series(m.feature_importance("gain"), FEATS).sort_values(ascending=False).round(0).to_dict())
 final_pair_model = lgb.train(params, lgb.Dataset(pairs[FEATS], pairs.target.values), 600)
 
 # %%
-def link(gi, gj, p, thr):
-    """Greedy chain building. Returns succ/pred arrays (-1 = none) over global indices."""
-    n = int(max(gi.max(), gj.max())) + 1
-    succ = -np.ones(n, int); pred = -np.ones(n, int); head = np.arange(n)  # head: union-find-ish chain id
-    def root(a):
-        while head[a] != a: head[a] = head[head[a]]; a = head[a]
-        return a
-    for o in np.argsort(-p):
-        if p[o] < thr: break
-        a, b = gi[o], gj[o]
-        if succ[a] >= 0 or pred[b] >= 0 or root(a) == root(b): continue
-        succ[a], pred[b] = b, a; head[root(b)] = root(a)
-    return succ, pred
+def assign(df, n_by_sbj):
+    """Per subject Hungarian matching on -log p over candidate pairs (non-candidates: high cost)."""
+    df = df.copy(); df["assigned"] = 0
+    for s, g in df.groupby("sbj"):
+        nodes = np.unique(np.r_[g.gi.values, g.gj.values]); pos = {v: k for k, v in enumerate(nodes)}; n = len(nodes)
+        C = np.full((n, n), 12.0, np.float32)
+        a = np.vectorize(pos.get)(g.gi.values); b = np.vectorize(pos.get)(g.gj.values)
+        C[a, b] = -np.log(g.p.values + 1e-5)
+        r, c = linear_sum_assignment(C)
+        ok = C[r, c] < 12.0
+        key = pd.MultiIndex.from_arrays([nodes[r[ok]], nodes[c[ok]]])
+        hit = pd.MultiIndex.from_arrays([g.gi.values, g.gj.values]).isin(key)
+        df.loc[g.index[hit], "assigned"] = 1
+    return df
 
-def chains_from(succ, pred):
-    out = []
-    for s in np.where(pred < 0)[0]:
-        c = [s]
-        while succ[c[-1]] >= 0: c.append(succ[c[-1]])
-        out.append(np.array(c))
-    return out
-
-def chain_smooth(P0, chains, w):
-    Q = P0.copy(); L = np.log(P0 + 1e-6)
-    for c in chains:
-        if len(c) < 2: continue
-        cs = np.cumsum(np.r_[np.zeros((1, 19)), L[c]], 0)
-        lo = np.clip(np.arange(len(c)) - w, 0, len(c)); hi = np.clip(np.arange(len(c)) + w + 1, 0, len(c))
-        Q[c] = np.exp((cs[hi] - cs[lo]) / (hi - lo)[:, None])
-    return Q / Q.sum(1, keepdims=True)
-
-def mf1(p, w0): q = p.copy(); q[:, 0] *= w0; return f1_score(y, q.argmax(1), average="macro")
-def best_null(p): return max((round(mf1(p, w), 4), w) for w in [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 1.0])
-
-print("baseline", best_null(oof))
-res = []
-for thr in [0.05, 0.2, 0.4]:
-    succ, pred = link(pairs.gi.values, pairs.gj.values, pairs.p.values, thr)
-    ch = chains_from(succ, pred)
-    ok = succ[succ >= 0] == np.where(succ >= 0)[0] + 1
-    L = np.array([len(c) for c in ch])
-    print(f"thr {thr}: links {int((succ>=0).sum())} precision {ok.mean():.3f} | chains {len(ch)} mean len {L.mean():.1f} median {np.median(L):.0f}")
-    for w in [2, 5, 10, 20]:
-        f, nw = best_null(chain_smooth(oof, ch, w)); res.append(dict(thr=thr, w=w, f1=f, null_w=nw)); print("   w", w, f, nw)
-res = pd.DataFrame(res).sort_values("f1", ascending=False); print(res.head().to_string())
+t0 = time.time()
+pairs = assign(pairs, None)
+A = pairs[pairs.assigned == 1]
+print(f"assignment ({time.time()-t0:.0f}s): edges {len(A)} precision {A.target.mean():.4f} recall {A.target.sum()/nxt_ok.sum():.4f}")
+for thr in [0.05, 0.1, 0.2, 0.3]:
+    a = A[A.p >= thr]; print(f"  assigned & p>={thr}: edges {len(a)} precision {a.target.mean():.4f} recall {a.target.sum()/nxt_ok.sum():.4f}")
 
 # %%
-# Apply to test
-b = res.iloc[0]
 rows = []
-for s in np.unique(te_meta.sbj_id):
-    idx = np.where(te_meta.sbj_id.values == s)[0]
-    i, j, Fdf = subject_pairs(te_vid[idx], te_imu[idx].astype(np.float32), te_loc[idx], pte[idx])
-    Fdf["gi"], Fdf["gj"] = idx[i], idx[j]; rows.append(Fdf)
+for s in np.unique(te_sbj):
+    idx = np.where(te_sbj == s)[0]
+    i, j, Fdf, _ = subject_pairs(te_E[s], te_imu[idx].astype(np.float32), te_loc[idx], pte[idx], ridge_all)
+    Fdf["gi"], Fdf["gj"], Fdf["sbj"] = idx[i], idx[j], s; rows.append(Fdf)
 tp = pd.concat(rows, ignore_index=True); tp["p"] = final_pair_model.predict(tp[FEATS])
-succ, pred = link(tp.gi.values, tp.gj.values, tp.p.values, b.thr); ch = chains_from(succ, pred)
-L = np.array([len(c) for c in ch]); print("test chains", len(ch), "mean len", L.mean().round(1), "links", int((succ >= 0).sum()))
-q = chain_smooth(pte, ch, int(b.w)); q[:, 0] *= b.null_w
-np.save(f"{OUT}/te_chain_probs.npy", q); np.save(f"{OUT}/te_succ.npy", succ)
-pairs[["gi", "gj", "p", "target"]].to_parquet(f"{OUT}/tr_pairs.parquet"); tp[["gi", "gj", "p"]].to_parquet(f"{OUT}/te_pairs.parquet")
-pd.DataFrame({"id": te_meta.id, "target_feature": q.argmax(1)}).to_csv(f"{OUT}/submission.csv", index=False)
-print("best", b.to_dict())
+tp = assign(tp, None)
+print("test pairs", tp.shape, "assigned", int(tp.assigned.sum()), "mean p of assigned", tp.p[tp.assigned == 1].mean().round(3),
+      "| train mean p of assigned", A.p.mean().round(3))
+pairs[["gi", "gj", "p", "assigned", "target"]].to_parquet(f"{OUT}/tr_pairs.parquet")
+tp[["gi", "gj", "p", "assigned"]].to_parquet(f"{OUT}/te_pairs.parquet")
