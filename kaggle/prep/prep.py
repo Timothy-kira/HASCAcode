@@ -3,7 +3,7 @@
 # Cuts every training recording into non-overlapping 1 s tiles that mirror the test construction
 # (50 IMU rows per sensor, central 15 of 30 VideoMAE frames) and re-packs the test set in the same layout.
 # Outputs (in /kaggle/working, consumed by later kernels via `kernel_sources`):
-# `tr_imu.npy (T,4,50,3)`, `tr_vid.npy (T,15,768) f16`, `tr_meta.csv`, `te_imu.npy (N,50,3)`, `te_vid.npy (N,15,768) f16`, `te_meta.csv`.
+# `tr_imu.npy (T,4,50,3)`, `tr_valid.npy (T,4)` (False where the sensor was missing, e.g. sbj_10 left arm), `tr_vid.npy (T,15,768) f16`, `tr_meta.csv`, `te_imu.npy (N,50,3)`, `te_vid.npy (N,15,768) f16`, `te_meta.csv`.
 
 # %%
 import glob, os, re, time
@@ -21,13 +21,14 @@ V0, V1 = 8, 23  # frames 8..22 of each 30-frame second: the clip (i-8..i+7) stay
 
 # %%
 files = sorted(glob.glob(f"{ROOT}/train/inertial_feat/*.csv"), key=lambda f: [int(x) for x in re.findall(r"\d+", os.path.basename(f))])
-imus, vids, metas = [], [], []
+imus, vids, metas, valids = [], [], [], []
 for fid, f in enumerate(files):
     t0 = time.time()
     name = os.path.basename(f)[:-4]
     df = pd.read_csv(f, dtype={"label": str})
     cols = [f"{l}_acc_{a}" for l in LOCS for a in "xyz"]
     nan = df[cols].isna().sum()
+    miss = df[cols].isna().to_numpy().reshape(len(df), 4, 3).any(2)  # (rows,4) sensor missing
     if nan.sum():
         print(name, "NaN per column:", nan[nan > 0].to_dict(), "longest NaN run:",
               int(df[cols[0]].isna().astype(int).groupby(df[cols[0]].notna().cumsum()).sum().max()))
@@ -38,16 +39,19 @@ for fid, f in enumerate(files):
     T = min(len(df) // 50, v.shape[0] // 30)
     imu = df[cols].to_numpy(np.float32)[: T * 50].reshape(T, 50, 4, 3).transpose(0, 2, 1, 3)
     vid = np.asarray(v[: T * 30], dtype=np.float32).reshape(T, 30, 768)[:, V0:V1].astype(np.float16)
+    valid = ~miss[: T * 50].reshape(T, 50, 4).any(1)  # (T,4) tile has real data for that sensor
     lt = lab[: T * 50].reshape(T, 50)
     counts = np.stack([(lt == k).sum(1) for k in range(19)], 1)
     metas.append(pd.DataFrame(dict(file=name, file_id=fid, sbj=int(df.sbj_id.iloc[0]), t=np.arange(T),
                                    label=counts.argmax(1), label_frac=counts.max(1) / 50, label_center=lt[:, 25])))
-    imus.append(imu); vids.append(vid)
+    imus.append(imu); vids.append(vid); valids.append(valid)
     print(f"{name}: T={T} ({time.time()-t0:.0f}s)")
 
 tr_meta = pd.concat(metas, ignore_index=True)
 np.save(f"{OUT}/tr_imu.npy", np.concatenate(imus)); np.save(f"{OUT}/tr_vid.npy", np.concatenate(vids))
 tr_meta.to_csv(f"{OUT}/tr_meta.csv", index=False)
+np.save(f"{OUT}/tr_valid.npy", np.concatenate(valids))
+print("invalid (tile, sensor) pairs:", int((~np.concatenate(valids)).sum()))
 del imus
 print(tr_meta.shape, "pure tiles:", (tr_meta.label_frac == 1).mean().round(3),
       "| mode==center:", (tr_meta.label == tr_meta.label_center).mean().round(4))

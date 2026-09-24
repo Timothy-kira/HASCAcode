@@ -19,7 +19,7 @@ rng = np.random.default_rng(0)
 print("cpus", os.cpu_count(), "| prep dir", P)
 
 tr_meta = pd.read_csv(f"{P}/tr_meta.csv"); te_meta = pd.read_csv(f"{P}/te_meta.csv")
-tr_imu = np.load(f"{P}/tr_imu.npy"); te_imu = np.load(f"{P}/te_imu.npy")
+tr_imu = np.load(f"{P}/tr_imu.npy"); tr_valid = np.load(f"{P}/tr_valid.npy"); te_imu = np.load(f"{P}/te_imu.npy")
 tr_vid = np.load(f"{P}/tr_vid.npy", mmap_mode="r"); te_vid = np.load(f"{P}/te_vid.npy", mmap_mode="r")
 T, N = len(tr_meta), len(te_meta)
 te_loc = te_meta.sensor_location.map({l: i for i, l in enumerate(LOCS)}).to_numpy()
@@ -73,8 +73,10 @@ print("video feats", trVF.shape, f"{time.time()-t0:.0f}s", "explained var (mean/
 
 # %%
 # Evaluation view: one random sensor per tile (like test). Training view: 2 random sensors per tile.
-eval_loc = rng.integers(0, 4, T)
-tr_loc2 = np.stack([rng.permutation(4)[:2] for _ in range(T)])
+# Only sample sensors that were actually recorded (tr_valid masks e.g. sbj_10's missing left arm).
+order = np.argsort(rng.random((T, 4)) + ~tr_valid, axis=1)  # valid sensors first, random order
+eval_loc = order[:, 0]
+tr_loc2 = np.where(tr_valid[np.arange(T)[:, None], order[:, :2]], order[:, :2], order[:, :1])
 t0 = time.time()
 F_eval = imu_feats(tr_imu[np.arange(T), eval_loc], eval_loc)
 F_tr = [imu_feats(tr_imu[np.arange(T), tr_loc2[:, k]], tr_loc2[:, k]) for k in range(2)]
