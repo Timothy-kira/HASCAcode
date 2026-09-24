@@ -71,20 +71,23 @@ def pair_graphs(pairs, n):
     W = sp.csr_matrix((pairs.p.values, (pairs.gi.values, pairs.gj.values)), (n, n))
     return rownorm(W), rownorm(W.T.tocsr()), rownorm(W + W.T)  # successor, predecessor, both
 
+def hops(W, X, ks):
+    out, cur, done = {}, X, 0
+    for k in ks:
+        while done < k: cur = W @ cur; done += 1
+        out[k] = cur
+    return out
+
 def context(P0, Fimu, pairs, V, sbj):
     n = len(P0); Ws, Wp, Wb = pair_graphs(pairs, n); Wk = knn_graph(V, sbj)
-    L = np.log(P0 + 1e-6)
+    L = np.log(P0 + 1e-6); hb = hops(Wb, P0, [1, 2, 4, 8, 16])
     blocks = {"own_p": P0, "own_imu": Fimu,
-              "succ_p": Ws @ P0, "pred_p": Wp @ P0, "both_p": Wb @ P0, "both2_p": Wb @ (Wb @ P0), "both4_p": Wb @ (Wb @ (Wb @ (Wb @ P0))),
+              "succ_p": Ws @ P0, "pred_p": Wp @ P0, "both_p": hb[1], "both2_p": hb[2], "both4_p": hb[4], "both8_p": hb[8], "both16_p": hb[16],
               "knn_p": Wk @ P0, "knn2_p": Wk @ (Wk @ P0), "both_logp": Wb @ L,
               "both_imu": Wb @ Fimu, "both2_imu": Wb @ (Wb @ Fimu), "knn_imu": Wk @ Fimu,
               "deg": np.c_[np.asarray((Ws > 0).sum(1)).ravel(), np.asarray((Wp > 0).sum(1)).ravel()]}
     names = [f"{k}_{i}" for k, v in blocks.items() for i in range(v.shape[1])]
     return np.concatenate([np.asarray(v, dtype=np.float32) for v in blocks.values()], 1), names
-
-t0 = time.time()
-Xtr, names = context(P0_tr, Ftr, tr_pairs, tr_vid, tr_sbj); Xte, _ = context(P0_te, Fte, te_pairs, te_vid, te_sbj)
-print("stage2 feats", Xtr.shape, f"{time.time()-t0:.0f}s")
 
 # %%
 def mf1(p, w0): q = p.copy(); q[:, 0] *= w0; return f1_score(y, q.argmax(1), average="macro")
@@ -92,15 +95,28 @@ def best_null(p): return max((round(mf1(p, w), 4), w) for w in [0.2, 0.3, 0.4, 0
 print("base avg", best_null(P0_tr))
 params = dict(objective="multiclass", num_class=19, learning_rate=0.05, num_leaves=31, min_data_in_leaf=50,
               feature_fraction=0.3, bagging_fraction=0.8, bagging_freq=1, lambda_l2=2.0, verbose=-1, num_threads=os.cpu_count())
-oof2 = np.zeros((T, 19), np.float32); pte2 = np.zeros((N, 19), np.float32)
-for k, (tri, vai) in enumerate(GroupKFold(5).split(Xtr, y, tr_sbj)):
+
+def stack_round(Ptr, Pte, r):
     t0 = time.time()
-    m = lgb.train(params, lgb.Dataset(Xtr[tri], y[tri]), 2000, valid_sets=[lgb.Dataset(Xtr[vai], y[vai])],
-                  callbacks=[lgb.early_stopping(80, verbose=False)])
-    oof2[vai] = m.predict(Xtr[vai], num_iteration=m.best_iteration); pte2 += m.predict(Xte, num_iteration=m.best_iteration) / 5
-    print(f"fold {k} iters {m.best_iteration} F1 {f1_score(y[vai], oof2[vai].argmax(1), average='macro'):.4f} ({time.time()-t0:.0f}s)")
-print("stage2 OOF", best_null(oof2))
-imp = pd.Series(m.feature_importance("gain"), names); print(imp.groupby(imp.index.str.rsplit("_", n=1).str[0]).sum().sort_values(ascending=False).round(0).to_dict())
+    Xtr, names = context(Ptr, Ftr, tr_pairs, tr_vid, tr_sbj); Xte, _ = context(Pte, Fte, te_pairs, te_vid, te_sbj)
+    print(f"round {r}: feats {Xtr.shape} ({time.time()-t0:.0f}s)")
+    oof2 = np.zeros((T, 19), np.float32); pte2 = np.zeros((N, 19), np.float32)
+    for k, (tri, vai) in enumerate(GroupKFold(5).split(Xtr, y, tr_sbj)):
+        t0 = time.time()
+        m = lgb.train(params, lgb.Dataset(Xtr[tri], y[tri]), 2000, valid_sets=[lgb.Dataset(Xtr[vai], y[vai])],
+                      callbacks=[lgb.early_stopping(80, verbose=False)])
+        oof2[vai] = m.predict(Xtr[vai], num_iteration=m.best_iteration); pte2 += m.predict(Xte, num_iteration=m.best_iteration) / 5
+        print(f"  fold {k} iters {m.best_iteration} F1 {f1_score(y[vai], oof2[vai].argmax(1), average='macro'):.4f} ({time.time()-t0:.0f}s)")
+    print(f"round {r} OOF", best_null(oof2))
+    imp = pd.Series(m.feature_importance("gain"), names); print(imp.groupby(imp.index.str.rsplit("_", n=1).str[0]).sum().sort_values(ascending=False).round(0).to_dict())
+    return oof2, pte2
+
+oof2, pte2 = stack_round(P0_tr, P0_te, 1)
+ROUNDS = 2
+for r in range(2, ROUNDS + 1):
+    o, t = stack_round(oof2, pte2, r)
+    if best_null(o)[0] <= best_null(oof2)[0]: print("no gain, stop"); break
+    oof2, pte2 = o, t
 
 # %%
 # Final propagation of stage-2 output over the soft pair graph
