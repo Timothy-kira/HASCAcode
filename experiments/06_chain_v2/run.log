@@ -1,0 +1,28 @@
+pairs (3466300, 27) positives 59589 recall@K 0.86 194s
+pair AUC 0.9434
+reranked top1 successor acc: 0.4271 | raw top1: 0.322
+{'rank_row': 616472.0, 'rank_col': 462503.0, 'imu_gap': 190652.0, 'vel_cos': 99727.0, 's_raw': 89428.0, 'gap_row': 88774.0, 'gap_col': 85817.0, 's_self_i': 77859.0, 'mag_edge_diff': 70825.0, 'mag_mean_diff': 56695.0, 's_self_j': 52598.0, 'p_l1': 45486.0, 's_mean': 45266.0, 'p_null_i': 44383.0, 's_inner': 44370.0, 'p_null_j': 43951.0, 'mag_std_diff': 40817.0, 's1': 34764.0, 'p_dot': 31646.0, 'loc_i': 5905.0, 'loc_j': 3723.0, 'same_loc': 2088.0, 'p_same_arg': 661.0}
+baseline (0.6446, 0.15)
+thr 0.05: links 55468 precision 0.513 | chains 13858 mean len 5.0 median 3
+   w 2 0.7182 0.1
+   w 5 0.7184 0.1
+   w 10 0.7071 0.1
+   w 20 0.6967 0.1
+thr 0.2: links 39304 precision 0.630 | chains 30022 mean len 2.3 median 1
+   w 2 0.6952 0.1
+   w 5 0.6993 0.1
+   w 10 0.6986 0.1
+   w 20 0.6983 0.1
+thr 0.4: links 27354 precision 0.724 | chains 41972 mean len 1.7 median 1
+   w 2 0.678 0.1
+   w 5 0.6802 0.1
+   w 10 0.68 0.1
+   w 20 0.6799 0.1
+    thr   w      f1  null_w
+1  0.05   5  0.7184     0.1
+0  0.05   2  0.7182     0.1
+2  0.05  10  0.7071     0.1
+5  0.20   5  0.6993     0.1
+6  0.20  10  0.6986     0.1
+test chains 2646 mean len 4.6 links 9588
+best {'thr': 0.05, 'w': 5.0, 'f1': 0.7184, 'null_w': 0.1}

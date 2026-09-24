@@ -21,8 +21,9 @@ Every scheme, its score and where its exact code lives.
 | 00 | prep v1/v2 — tiles 1 s, 4 sensors, central 15 video frames; v2 adds `tr_valid` mask (sbj_10 left arm missing 51k rows) | `experiments/00_prep_v1`, `00_prep_v2` | 69,326 train tiles; train/test video stats match | — |
 | 90 | timeline explore — successor retrieval by video / IMU similarity | `experiments/90_tl_explore` | whitened-256 top1 0.337, R@50 0.89; IMU same-sensor boundary top1 0.64 | whitening essential |
 | 03 | chain v1 — LightGBM pair model (K=30) + greedy hard chains + smoothing along chains | `experiments/03_chain_v1` | pair AUC 0.922, top1 succ 0.42; OOF 0.7135 | hard chains worse than soft graph; pair probs reused by stage2 |
+| 06 | chain v2 — K=50 candidates + base-probability agreement pair features | `experiments/06_chain_v2` | pair AUC 0.943 (v1 0.922), recall@K 0.86, top1 succ 0.427; chain-smoothing OOF 0.7184 | small gain; pairs feed stage2 v3 |
 | 05 | stage2 v2 — hops up to 16 + 2nd stacking round | `experiments/05_stage2_v2` | round1 0.7767 → 0.7829 after prop; round2 0.7605 | worse than v1 → reverted to hops 1–4, 1 round |
 
 ## Running
 - fusion v1 (`kaggle/fusion`, commit 4aecb4f): IMU 1D-CNN + VideoMAE temporal branch NN.
-- chain v2 (`kaggle/timeline/chain`, commit b419789): K=50 candidates + base-probability agreement features.
+- stage2 v3 (`kaggle/stage2`, commit b419789 code): stage2 v1 config on chain v2 pairs.
