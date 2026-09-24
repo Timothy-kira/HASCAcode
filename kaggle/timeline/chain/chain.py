@@ -1,7 +1,7 @@
 # %% [markdown]
 # # WEAR 2026 — Step D2: learned successor model -> chains -> smoothing along time
 # 1. Candidates: for each tile i, top-K tiles j (same subject) by whitened cos(last frame i, first frame j).
-# 2. Pair features (video similarities, mutual ranks, motion continuity, IMU boundary continuity) -> LightGBM
+# 2. Pair features (video similarities, mutual ranks, motion continuity, IMU boundary continuity, base-prob agreement) -> LightGBM
 #    "is j the successor of i" (trained on simulated test tiles of train subjects, subject-grouped OOF).
 # 3. Greedy linking by descending probability (each tile at most one succ/pred, no cycles) -> chains.
 # 4. Smooth class probabilities along chains + successor graph; evaluate OOF macro-F1; apply to test.
@@ -15,7 +15,7 @@ from sklearn.model_selection import GroupKFold
 def find(name): return os.path.dirname(glob.glob(f"/kaggle/input/**/{name}", recursive=True)[0])
 P, B = find("tr_meta.csv"), find("oof_lgb.npy")
 OUT = "/kaggle/working"; LOCS = ["left_arm", "left_leg", "right_arm", "right_leg"]
-K = 30
+K = 50
 tr_meta = pd.read_csv(f"{P}/tr_meta.csv"); te_meta = pd.read_csv(f"{P}/te_meta.csv")
 tr_imu = np.load(f"{P}/tr_imu.npy"); te_imu = np.load(f"{P}/te_imu.npy")
 tr_vid = np.load(f"{P}/tr_vid.npy", mmap_mode="r"); te_vid = np.load(f"{P}/te_vid.npy", mmap_mode="r")
@@ -27,8 +27,8 @@ tr_x = tr_imu[np.arange(len(tr_meta)), eval_loc].astype(np.float32)  # the singl
 # %%
 def norm(a): return a / (np.linalg.norm(a, axis=-1, keepdims=True) + 1e-8)
 
-def subject_pairs(V, X, loc, n_comp=256):
-    """Candidate pairs + features for one subject. V (n,15,768), X (n,50,3) single-sensor IMU, loc (n,)."""
+def subject_pairs(V, X, loc, P0, n_comp=256):
+    """Candidate pairs + features for one subject. V (n,15,768), X (n,50,3) single-sensor IMU, loc (n,), P0 (n,19) base probs."""
     V = np.asarray(V, dtype=np.float32); n = len(V)
     mean = V.mean(1); mu = mean.mean(0)
     _, S, Vt = np.linalg.svd(mean - mu, full_matrices=False)
@@ -58,6 +58,8 @@ def subject_pairs(V, X, loc, n_comp=256):
         imu_gap=np.where(same > 0, np.linalg.norm(endx[i] - X[j, 0], axis=1), np.nan),
         mag_mean_diff=np.abs(mag[i].mean(1) - mag[j].mean(1)), mag_std_diff=np.abs(mag[i].std(1) - mag[j].std(1)),
         mag_edge_diff=np.abs(mag[i, -5:].mean(1) - mag[j, :5].mean(1)),
+        p_dot=(P0[i] * P0[j]).sum(1), p_same_arg=(P0[i].argmax(1) == P0[j].argmax(1)).astype(np.float32),
+        p_null_i=P0[i, 0], p_null_j=P0[j, 0], p_l1=np.abs(P0[i] - P0[j]).sum(1),
     )
     return i, j, pd.DataFrame(feats).astype(np.float32)
 
@@ -66,7 +68,7 @@ t0 = time.time()
 rows = []
 for s in np.unique(tr_meta.sbj):
     idx = np.where(tr_meta.sbj.values == s)[0]
-    i, j, Fdf = subject_pairs(tr_vid[idx], tr_x[idx], eval_loc[idx])
+    i, j, Fdf = subject_pairs(tr_vid[idx], tr_x[idx], eval_loc[idx], oof[idx])
     gi, gj = idx[i], idx[j]
     Fdf["target"] = ((gj == gi + 1) & (tr_meta.file_id.values[gi] == tr_meta.file_id.values[np.minimum(gi + 1, len(tr_meta) - 1)])).astype(np.int8)
     Fdf["gi"], Fdf["gj"], Fdf["sbj"] = gi, gj, s
@@ -141,7 +143,7 @@ b = res.iloc[0]
 rows = []
 for s in np.unique(te_meta.sbj_id):
     idx = np.where(te_meta.sbj_id.values == s)[0]
-    i, j, Fdf = subject_pairs(te_vid[idx], te_imu[idx].astype(np.float32), te_loc[idx])
+    i, j, Fdf = subject_pairs(te_vid[idx], te_imu[idx].astype(np.float32), te_loc[idx], pte[idx])
     Fdf["gi"], Fdf["gj"] = idx[i], idx[j]; rows.append(Fdf)
 tp = pd.concat(rows, ignore_index=True); tp["p"] = final_pair_model.predict(tp[FEATS])
 succ, pred = link(tp.gi.values, tp.gj.values, tp.p.values, b.thr); ch = chains_from(succ, pred)

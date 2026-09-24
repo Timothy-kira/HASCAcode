@@ -14,6 +14,7 @@ from sklearn.model_selection import GroupKFold
 
 def find(name): return os.path.dirname(glob.glob(f"/kaggle/input/**/{name}", recursive=True)[0])
 P, B, C = find("tr_meta.csv"), find("oof_lgb.npy"), find("tr_pairs.parquet")
+HOPS, ROUNDS = [1, 2, 4], 1  # v2 with [1..16] hops and 2 rounds was worse (0.783 vs 0.787)
 OUT = "/kaggle/working"; LOCS = ["left_arm", "left_leg", "right_arm", "right_leg"]
 tr_meta = pd.read_csv(f"{P}/tr_meta.csv"); te_meta = pd.read_csv(f"{P}/te_meta.csv")
 tr_imu = np.load(f"{P}/tr_imu.npy"); te_imu = np.load(f"{P}/te_imu.npy")
@@ -80,9 +81,9 @@ def hops(W, X, ks):
 
 def context(P0, Fimu, pairs, V, sbj):
     n = len(P0); Ws, Wp, Wb = pair_graphs(pairs, n); Wk = knn_graph(V, sbj)
-    L = np.log(P0 + 1e-6); hb = hops(Wb, P0, [1, 2, 4, 8, 16])
+    L = np.log(P0 + 1e-6); hb = hops(Wb, P0, HOPS)
     blocks = {"own_p": P0, "own_imu": Fimu,
-              "succ_p": Ws @ P0, "pred_p": Wp @ P0, "both_p": hb[1], "both2_p": hb[2], "both4_p": hb[4], "both8_p": hb[8], "both16_p": hb[16],
+              "succ_p": Ws @ P0, "pred_p": Wp @ P0, **{f"both{k}_p": hb[k] for k in HOPS},
               "knn_p": Wk @ P0, "knn2_p": Wk @ (Wk @ P0), "both_logp": Wb @ L,
               "both_imu": Wb @ Fimu, "both2_imu": Wb @ (Wb @ Fimu), "knn_imu": Wk @ Fimu,
               "deg": np.c_[np.asarray((Ws > 0).sum(1)).ravel(), np.asarray((Wp > 0).sum(1)).ravel()]}
@@ -112,8 +113,7 @@ def stack_round(Ptr, Pte, r):
     return oof2, pte2
 
 oof2, pte2 = stack_round(P0_tr, P0_te, 1)
-ROUNDS = 2
-for r in range(2, ROUNDS + 1):
+for r in range(2, ROUNDS + 1):  # extra rounds did not help (v2: 0.7767 -> 0.7605)
     o, t = stack_round(oof2, pte2, r)
     if best_null(o)[0] <= best_null(oof2)[0]: print("no gain, stop"); break
     oof2, pte2 = o, t
