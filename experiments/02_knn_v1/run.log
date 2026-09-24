@@ -1,0 +1,47 @@
+baseline OOF macro-F1 (raw, best null w): 0.5719 (0.634327693062633, 0.3)
+sbj 0 knn: purity 0.833
+sbj 0 succ: purity 0.869
+sbj 7 knn: purity 0.767
+sbj 7 succ: purity 0.818
+sbj 14 knn: purity 0.862
+sbj 14 succ: purity 0.885
+{'which': 'knn', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.5, 'iters': 1, 'f1': 0.6864, 'null_w': 0.3} 60s
+{'which': 'knn', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.8, 'iters': 3, 'f1': 0.7005, 'null_w': 0.3} 74s
+{'which': 'knn', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.9, 'iters': 10, 'f1': 0.6911, 'null_w': 0.3} 88s
+{'which': 'knn', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.5, 'iters': 1, 'f1': 0.6875, 'null_w': 0.3} 101s
+{'which': 'knn', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.8, 'iters': 3, 'f1': 0.7035, 'null_w': 0.3} 115s
+{'which': 'knn', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.9, 'iters': 10, 'f1': 0.6835, 'null_w': 0.3} 129s
+{'which': 'knn', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.5, 'iters': 1, 'f1': 0.6838, 'null_w': 0.3} 143s
+{'which': 'knn', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.8, 'iters': 3, 'f1': 0.6925, 'null_w': 0.3} 157s
+{'which': 'knn', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.9, 'iters': 10, 'f1': 0.6519, 'null_w': 0.3} 172s
+{'which': 'succ', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.5, 'iters': 1, 'f1': 0.694, 'null_w': 0.3} 186s
+{'which': 'succ', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.8, 'iters': 3, 'f1': 0.7173, 'null_w': 0.3} 199s
+{'which': 'succ', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.9, 'iters': 10, 'f1': 0.7087, 'null_w': 0.3} 213s
+{'which': 'succ', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.5, 'iters': 1, 'f1': 0.6962, 'null_w': 0.3} 227s
+{'which': 'succ', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.8, 'iters': 3, 'f1': 0.7196, 'null_w': 0.3} 241s
+{'which': 'succ', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.9, 'iters': 10, 'f1': 0.7072, 'null_w': 0.3} 255s
+{'which': 'succ', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.5, 'iters': 1, 'f1': 0.6952, 'null_w': 0.3} 269s
+{'which': 'succ', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.8, 'iters': 3, 'f1': 0.7185, 'null_w': 0.3} 283s
+{'which': 'succ', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.9, 'iters': 10, 'f1': 0.699, 'null_w': 0.3} 297s
+{'which': 'knn+succ', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.5, 'iters': 1, 'f1': 0.6926, 'null_w': 0.3} 311s
+{'which': 'knn+succ', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.8, 'iters': 3, 'f1': 0.7167, 'null_w': 0.3} 325s
+{'which': 'knn+succ', 'k_knn': 5, 'k_succ': 2, 'alpha': 0.9, 'iters': 10, 'f1': 0.7108, 'null_w': 0.3} 339s
+{'which': 'knn+succ', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.5, 'iters': 1, 'f1': 0.6916, 'null_w': 0.3} 353s
+{'which': 'knn+succ', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.8, 'iters': 3, 'f1': 0.7149, 'null_w': 0.3} 367s
+{'which': 'knn+succ', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.9, 'iters': 10, 'f1': 0.6987, 'null_w': 0.3} 381s
+{'which': 'knn+succ', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.5, 'iters': 1, 'f1': 0.688, 'null_w': 0.3} 395s
+{'which': 'knn+succ', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.8, 'iters': 3, 'f1': 0.7045, 'null_w': 0.3} 409s
+{'which': 'knn+succ', 'k_knn': 20, 'k_succ': 5, 'alpha': 0.9, 'iters': 10, 'f1': 0.6708, 'null_w': 0.3} 424s
+       which  k_knn  k_succ  alpha  iters      f1  null_w
+13      succ     10       3    0.8      3  0.7196     0.3
+16      succ     20       5    0.8      3  0.7185     0.3
+10      succ      5       2    0.8      3  0.7173     0.3
+19  knn+succ      5       2    0.8      3  0.7167     0.3
+22  knn+succ     10       3    0.8      3  0.7149     0.3
+20  knn+succ      5       2    0.9     10  0.7108     0.3
+11      succ      5       2    0.9     10  0.7087     0.3
+14      succ     10       3    0.9     10  0.7072     0.3
+25  knn+succ     20       5    0.8      3  0.7045     0.3
+4        knn     10       3    0.8      3  0.7035     0.3
+best {'which': 'succ', 'k_knn': 10, 'k_succ': 3, 'alpha': 0.8, 'iters': 3, 'f1': 0.7196, 'null_w': 0.3}
+{0: 0.547, 1: 0.04, 2: 0.024, 3: 0.026, 4: 0.032, 5: 0.03, 6: 0.006, 7: 0.014, 8: 0.019, 9: 0.017, 10: 0.042, 11: 0.01, 12: 0.031, 13: 0.023, 14: 0.035, 15: 0.034, 16: 0.017, 17: 0.028, 18: 0.024}

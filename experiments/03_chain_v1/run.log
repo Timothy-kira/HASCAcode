@@ -1,0 +1,13 @@
+# (copied from the log fetched right after the run; Kaggle only keeps the latest version's output)
+pairs (2079780, 22) positives 56978 recall@K 0.822 94s
+pair AUC 0.9222
+reranked top1 successor acc: 0.4223 | raw top1: 0.322
+baseline (0.6446, 0.15)
+thr 0.05: links 55224 precision 0.512 | chains 14102 mean len 4.9 median 3
+   w 2 0.7135 / w 5 0.7088 / w 10 0.6965 / w 20 0.6868   (null_w 0.1)
+thr 0.2: links 39259 precision 0.628 | chains 30067 mean len 2.3 median 1
+   w 2 0.696 / w 5 0.7 / w 10 0.6989 / w 20 0.6988
+thr 0.4: links 27312 precision 0.723 | chains 42014 mean len 1.7 median 1
+   w 2 0.6792 / w 5 0.6812 / w 10 0.6807 / w 20 0.6807
+test chains 2680 mean len 4.6 links 9554
+best {'thr': 0.05, 'w': 2.0, 'f1': 0.7135, 'null_w': 0.1}

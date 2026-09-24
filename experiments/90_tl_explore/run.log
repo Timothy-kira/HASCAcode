@@ -1,0 +1,13 @@
+(69326, 15, 768)
+raw last->first                          top1 0.271  R@5 0.500  R@20 0.707  R@50 0.838
+centred last->first                      top1 0.273  R@5 0.504  R@20 0.713  R@50 0.843
+centred mean(last3)->mean(first3)        top1 0.250  R@5 0.482  R@20 0.689  R@50 0.819
+centred tile mean->tile mean             top1 0.136  R@5 0.350  R@20 0.560  R@50 0.701
+centred half-extrap h=2                  top1 0.157  R@5 0.348  R@20 0.571  R@50 0.727
+centred half-extrap h=4                  top1 0.226  R@5 0.446  R@20 0.671  R@50 0.814
+centred half-extrap h=8                  top1 0.260  R@5 0.489  R@20 0.704  R@50 0.841
+whitened n=32                                 top1 0.193  R@5 0.410  R@20 0.647  R@50 0.806
+whitened n=64                                 top1 0.244  R@5 0.486  R@20 0.718  R@50 0.857
+whitened n=128                                top1 0.293  R@5 0.547  R@20 0.769  R@50 0.886
+whitened n=256                                top1 0.337  R@5 0.605  R@20 0.804  R@50 0.890
+IMU same-sensor boundary: top1 / R@5 / R@20 [0.643 0.852 0.932]

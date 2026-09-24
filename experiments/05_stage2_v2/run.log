@@ -1,0 +1,23 @@
+base models: ['lgb']
+imu feats (69326, 99) 6s
+base avg (0.6426, 0.2)
+round 1: feats (69326, 607) (62s)
+  fold 0 iters 78 F1 0.7658 (87s)
+  fold 1 iters 63 F1 0.7230 (77s)
+  fold 2 iters 86 F1 0.7964 (89s)
+  fold 3 iters 52 F1 0.7547 (72s)
+  fold 4 iters 68 F1 0.8104 (80s)
+round 1 OOF (0.7767, 0.4)
+{'both2_p': 339733.0, 'both4_p': 303055.0, 'both8_p': 249043.0, 'both_p': 217983.0, 'knn2_p': 180481.0, 'both16_p': 159378.0, 'both_logp': 153141.0, 'both2_imu': 148355.0, 'knn_p': 93543.0, 'own_p': 72596.0, 'knn_imu': 62980.0, 'succ_p': 49234.0, 'pred_p': 34630.0, 'both_imu': 30241.0, 'own_imu': 25895.0, 'deg': 317.0}
+round 2: feats (69326, 607) (32s)
+  fold 0 iters 65 F1 0.7597 (77s)
+  fold 1 iters 42 F1 0.7056 (62s)
+  fold 2 iters 53 F1 0.7930 (68s)
+  fold 3 iters 41 F1 0.7387 (64s)
+  fold 4 iters 65 F1 0.7872 (78s)
+round 2 OOF (0.7605, 0.7)
+{'both_p': 335610.0, 'both2_p': 269977.0, 'both_logp': 236706.0, 'own_p': 203721.0, 'both4_p': 190658.0, 'knn_p': 158812.0, 'both16_p': 134603.0, 'both8_p': 130898.0, 'both2_imu': 99740.0, 'pred_p': 90871.0, 'knn2_p': 87282.0, 'succ_p': 87176.0, 'knn_imu': 41952.0, 'own_imu': 28239.0, 'both_imu': 24297.0, 'deg': 323.0}
+no gain, stop
+[((0.7829, 0.5), 0.7, 1), ((0.7823, 0.4), 0.5, 3), ((0.7821, 0.5), 0.5, 1), ((0.7821, 0.4), 0.5, 5), ((0.7814, 0.4), 0.7, 3)]
+final: alpha 0.7 iters 1 null_w 0.5 | test dist [0.501 0.033 0.027 0.029 0.03  0.026 0.017 0.024 0.031 0.021 0.036 0.015
+ 0.042 0.024 0.035 0.035 0.02  0.03  0.023]
