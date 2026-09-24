@@ -27,7 +27,7 @@ code(r'''
 sub = pd.read_csv(f"{ROOT}/sample_submission.csv"); print(sub.shape); print(sub.head())
 tm = pd.read_csv(f"{ROOT}/test/test_meta_data.csv"); print(tm.shape); print(tm.head())
 print(tm.nunique())
-print(pd.crosstab(tm.subject_id, tm.inertial_sensor_location))
+print(pd.crosstab(tm.sbj_id, tm.sensor_location))
 ''')
 code(r'''
 Xi = np.load(f"{ROOT}/test/test_inertial_data.npy", mmap_mode="r")
@@ -78,8 +78,8 @@ tr = pd.read_csv(sorted(glob.glob(f"{ROOT}/train/inertial_feat/*.csv"))[0])
 for loc in ["right_arm", "left_arm", "right_leg", "left_leg"]:
     c = [f"{loc}_acc_{a}" for a in "xyz"]
     print(loc, "mean", tr[c].mean().values.round(3), "std", tr[c].std().values.round(3))
-for loc in tm.inertial_sensor_location.unique():
-    m = (tm.inertial_sensor_location == loc).values
+for loc in tm.sensor_location.unique():
+    m = (tm.sensor_location == loc).values
     print("TEST", loc, "mean", xi[m].mean((0, 1)).round(3), "std", xi[m].std((0, 1)).round(3))
 ''')
 
