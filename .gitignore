@@ -2,3 +2,4 @@ data/
 *.zip
 kaggle/**/output/
 .logs/
+.subs/
