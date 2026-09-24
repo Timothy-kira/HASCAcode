@@ -25,6 +25,11 @@ Every scheme, its score and where its exact code lives.
 | 07 | stage2 v3 — stage2 v1 config (hops 1–4, 1 round) on chain v2 pairs | `experiments/07_stage2_v3` | OOF 0.7792 → 0.7886 after propagation (v1: 0.7819 → 0.7872) | ≈ tie; better pair AUC alone does not move stage2 → not submitted |
 | 05 | stage2 v2 — hops up to 16 + 2nd stacking round | `experiments/05_stage2_v2` | round1 0.7767 → 0.7829 after prop; round2 0.7605 | worse than v1 → reverted to hops 1–4, 1 round |
 
-## Running
-- fusion v1 (`kaggle/fusion`, commit 4aecb4f): IMU 1D-CNN + VideoMAE temporal branch NN.
-- chain v3 (`kaggle/timeline/chain`, commit 0c4b9b7): ridge next-frame predictor + union candidates + Hungarian one-to-one assignment.
+## Paused (2026-09-24) — kernels left running on Kaggle, results not yet read
+- fusion v1 (`kaggle/fusion`, commit 4aecb4f): IMU 1D-CNN + VideoMAE temporal branch NN → outputs `oof_nn.npy` / `te_nn.npy`.
+- chain v3 (`kaggle/timeline/chain`, commit 0c4b9b7): ridge next-frame predictor + union candidates + Hungarian assignment.
+- diag v1 (`kaggle/diag`): stage2 OOF vs synthetic timeline-graph precision (oracle 1.0 / 0.7 / 0.5) to find the bottleneck.
+
+Next when resuming: read the three logs (`kaggle/fetchlog.sh wear-hasca-2026-<name>`), snapshot them into `experiments/`,
+then decide from diag whether to focus on the timeline graph or on the base model; rerun stage2 with fusion probs
+(add `evelynyang02/wear-hasca-2026-fusion` to `kaggle/stage2/kernel-metadata.json` kernel_sources).
