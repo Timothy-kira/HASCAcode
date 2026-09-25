@@ -1,0 +1,14 @@
+base models: ['lgb']
+imu feats (69326, 99) 5s
+true segments: 1458 | mean length (s): 47.5
+base (no graph): (0.6426, 0.2)
+real graph, hops 1-4: stage2 OOF (0.7841, 0.5) (421s)
+(A) perfect graph, hops 1-64: stage2 OOF (0.826, 0.4) (366s)
+(B) real graph + oracle segment vote: stage2 OOF (0.8707, 0.2) (319s)
+div 20: clusters 3455, mean size 20.1, tile-weighted purity 0.895, mean true segments per cluster 2.78 (445s)
+(C) real graph + clusters div 20: stage2 OOF (0.7811, 0.4) (440s)
+div 40: clusters 1721, mean size 40.3, tile-weighted purity 0.849, mean true segments per cluster 3.95 (306s)
+(C) real graph + clusters div 40: stage2 OOF (0.781, 0.3) (425s)
+div 80: clusters 852, mean size 81.4, tile-weighted purity 0.765, mean true segments per cluster 5.67 (217s)
+(C) real graph + clusters div 80: stage2 OOF (0.7841, 0.4) (488s)
+(C) real graph + clusters div 20/40/80: stage2 OOF (0.7908, 0.3) (426s)

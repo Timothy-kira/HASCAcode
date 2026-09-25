@@ -1,0 +1,24 @@
+{
+  "id": "evelynyang02/wear-hasca-2026-stage2",
+  "title": "WEAR HASCA 2026 stage2",
+  "code_file": "stage2.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "dataset_sources": [],
+  "competition_sources": [
+    "3rd-wear-dataset-challenge-hasca-2026"
+  ],
+  "kernel_sources": [
+    "evelynyang02/wear-hasca-2026-prep",
+    "evelynyang02/wear-hasca-2026-baseline",
+    "evelynyang02/wear-hasca-2026-chain",
+    "evelynyang02/wear-hasca-2026-fusion",
+    "evelynyang02/wear-hasca-2026-lgb2",
+    "evelynyang02/wear-hasca-2026-fusion2"
+  ],
+  "model_sources": []
+}
