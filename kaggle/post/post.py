@@ -1,5 +1,7 @@
 # %% [markdown]
-# # WEAR 2026 — Step F: per-subject class-prior balancing (transductive post-processing)
+# # WEAR 2026 — Step F (v2): per-subject class-prior balancing (transductive post-processing)
+# v2: wider grid, "free-null" mode (only the 18 activities are equalised, null share left to the model since it
+# varies 0.14-0.57 across subjects), and alternating balance <-> propagation.
 # Every subject performs all 18 activities (each ~3.3% of tiles in train) with ~40% null. Stage2 predictions per test
 # subject are unbalanced (e.g. push-ups 1.1% vs push-ups-complex 4.7%), hinting at systematic confusion between variants.
 # Sinkhorn-style scaling finds per-subject class weights w so the mean prediction moves towards a target share r;
@@ -36,31 +38,48 @@ def propagate(P2, pairs, alpha=0.7):
     return (1 - alpha) * P2 + alpha * (rownorm(W + W.T) @ P2)
 
 def balance(Pm, sbj, tau, lam, iters=100):
+    """tau=None -> free-null: equalise the 18 activity shares, keep null weight 1."""
     out = Pm.copy()
-    r = np.r_[tau, np.full(18, (1 - tau) / 18)]
     for s in np.unique(sbj):
         m = sbj == s; Q = Pm[m]; w = np.ones(19)
         for _ in range(iters):
-            Z = Q * w; Z /= Z.sum(1, keepdims=True)
-            w *= (r / (Z.mean(0) + 1e-9)) ** 0.5
+            Z = Q * w; Z /= Z.sum(1, keepdims=True); mean = Z.mean(0)
+            if tau is None: r = np.r_[mean[0], np.full(18, (1 - mean[0]) / 18)]
+            else: r = np.r_[tau, np.full(18, (1 - tau) / 18)]
+            w *= (r / (mean + 1e-9)) ** 0.5
+            if tau is None: w /= w[0]
         out[m] = Q * w ** lam
     return out / out.sum(1, keepdims=True)
 
 oofp = propagate(oof, tr_pairs); ptep = propagate(pte, te_pairs)
 print("stage2 OOF raw", best_null(oof), "| after propagation", best_null(oofp))
 res = []
-for tau in [0.35, 0.40, 0.45]:
-    for lam in [0.25, 0.5, 0.75, 1.0]:
-        f, w0 = best_null(balance(oofp, tr_sbj, tau, lam)); res.append(dict(tau=tau, lam=lam, f1=f, null_w=w0))
-res = pd.DataFrame(res).sort_values("f1", ascending=False); print(res.head(8).to_string())
+for tau in [None, 0.40, 0.45, 0.50, 0.55]:
+    for lam in [0.75, 1.0, 1.5, 2.0]:
+        f, w0 = best_null(balance(oofp, tr_sbj, tau, lam)); res.append(dict(tau=tau, lam=lam, rounds=1, f1=f, null_w=w0))
+        print(res[-1], flush=True)
+res = pd.DataFrame(res).sort_values("f1", ascending=False)
+# alternating balance <-> propagation for the two best settings
+def alt(Pm, sbj, pairs, tau, lam, rounds):
+    Q = Pm
+    for _ in range(rounds): Q = propagate(balance(Q, sbj, tau, lam), pairs)
+    return Q
+for _, r0 in res.head(2).iterrows():
+    tau = None if pd.isna(r0.tau) else r0.tau
+    for rounds in [2, 3]:
+        f, w0 = best_null(alt(oof, tr_sbj, tr_pairs, tau, r0.lam, rounds)); res = pd.concat([res, pd.DataFrame([dict(tau=tau, lam=r0.lam, rounds=rounds, f1=f, null_w=w0)])])
+        print(res.iloc[-1].to_dict(), flush=True)
 
 # %%
-b = res.iloc[0]
-q_oof = balance(oofp, tr_sbj, b.tau, b.lam); q_oof[:, 0] *= b.null_w
+res = res.sort_values("f1", ascending=False); print(res.head(8).to_string())
+b = res.iloc[0]; tau = None if pd.isna(b.tau) else b.tau
+if b.rounds == 1: q_oof, q = balance(oofp, tr_sbj, tau, b.lam), balance(ptep, te_sbj, tau, b.lam)
+else: q_oof, q = alt(oof, tr_sbj, tr_pairs, tau, b.lam, int(b.rounds)), alt(pte, te_sbj, te_pairs, tau, b.lam, int(b.rounds))
+q_oof[:, 0] *= b.null_w
 pf = f1_score(y, q_oof.argmax(1), average=None)
 print("per-class F1 after balancing:", dict(enumerate(pf.round(3))))
 print("per-subject F1:", {s: round(f1_score(y[tr_sbj == s], q_oof[tr_sbj == s].argmax(1), average="macro"), 3) for s in np.unique(tr_sbj)})
-q = balance(ptep, te_sbj, b.tau, b.lam); q[:, 0] *= b.null_w
+q[:, 0] *= b.null_w
 pred = q.argmax(1)
 print("test pred share per subject:"); print(pd.crosstab(te_sbj, pred, normalize="index").round(3).to_string())
 pd.DataFrame({"id": te_meta.id, "target_feature": pred}).to_csv(f"{OUT}/submission.csv", index=False)
