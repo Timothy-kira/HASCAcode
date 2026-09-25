@@ -1,8 +1,8 @@
 # %% [markdown]
-# # WEAR 2026 — Diagnostic: how much does timeline-graph quality limit stage2?
-# Same stage2 features/model, but the train pair graph is synthetic with controlled successor precision
-# (oracle = true t->t+1 edges). Compares stage2 OOF across precisions to locate the bottleneck.
-# (original stage2 header follows)
+# # WEAR 2026 — Diagnostic v2: how much long-range (segment-level) context is worth, and can clustering deliver it?
+# (A) ceiling: perfect successor graph with hops up to 64; (B) ceiling: oracle vote over the true activity segment;
+# (C) realistic: per-subject spectral clustering of (pair-prob graph + video kNN), cluster-mean probs as stage2 features.
+# (stage2 header follows)
 #
 # Each tile's neighbours in time (soft successor/predecessor graph from the learned pair model, plus a video kNN graph)
 # usually carry a *different* sensor, so aggregating their IMU features and base-model probabilities gives a
@@ -101,34 +101,74 @@ def context(P0, Fimu, pairs, V, sbj):
     return np.concatenate([np.asarray(v, dtype=np.float32) for v in blocks.values()], 1), names
 
 # %%
+from sklearn.cluster import SpectralClustering
 def mf1(p, w0): q = p.copy(); q[:, 0] *= w0; return f1_score(y, q.argmax(1), average="macro")
 def best_null(p): return max((round(mf1(p, w), 4), w) for w in [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0, 1.2])
 params = dict(objective="multiclass", num_class=19, learning_rate=0.05, num_leaves=31, min_data_in_leaf=50,
               feature_fraction=0.3, bagging_fraction=0.8, bagging_freq=1, lambda_l2=2.0, verbose=-1, num_threads=os.cpu_count())
-nxt_ok = np.r_[tr_meta.file_id.values[1:] == tr_meta.file_id.values[:-1], False]
-real_top1 = tr_pairs.loc[tr_pairs.groupby("gi").p.idxmax()]
-print("real graph: top1 successor precision", round(real_top1.target.mean(), 3))
+file_id = tr_meta.file_id.values
+nxt_ok = np.r_[file_id[1:] == file_id[:-1], False]
+seg = np.r_[0, np.cumsum((y[1:] != y[:-1]) | (file_id[1:] != file_id[:-1]))]  # true activity segments (label runs)
+print("true segments:", seg.max() + 1, "| mean length (s):", round(T / (seg.max() + 1), 1))
 
-def synthetic_pairs(prec, seed=0):
-    """Each tile gets one successor edge: the true t+1 with prob `prec`, else a random real candidate of the pair model."""
-    r = np.random.default_rng(seed)
-    gi = np.where(nxt_ok)[0]
-    wrong = tr_pairs[tr_pairs.target == 0].groupby("gi").gj.first()
-    use_true = r.random(len(gi)) < prec
-    gj = np.where(use_true, gi + 1, wrong.reindex(gi).fillna(-1).astype(int).values)
-    keep = gj >= 0
-    return pd.DataFrame({"gi": gi[keep], "gj": gj[keep], "p": 1.0})
-
-def cv(pairs, tag):
-    X, _ = context(P0_tr, Ftr, pairs, tr_vid, tr_sbj)
-    oof2 = np.zeros((T, 19), np.float32)
+def cv(X, tag):
+    t0 = time.time(); oof2 = np.zeros((T, 19), np.float32)
     for k, (tri, vai) in enumerate(GroupKFold(5).split(X, y, tr_sbj)):
         m = lgb.train(params, lgb.Dataset(X[tri], y[tri]), 2000, valid_sets=[lgb.Dataset(X[vai], y[vai])],
                       callbacks=[lgb.early_stopping(80, verbose=False)])
         oof2[vai] = m.predict(X[vai], num_iteration=m.best_iteration)
-    print(f"{tag}: stage2 OOF {best_null(oof2)}", flush=True)
+    print(f"{tag}: stage2 OOF {best_null(oof2)} ({time.time()-t0:.0f}s)", flush=True)
+    return oof2
+
+def group_mean(P, groups):
+    """Per-tile mean of P over its group, plus log group size."""
+    g = pd.factorize(groups)[0]; cnt = np.bincount(g)
+    S = np.zeros((cnt.size, P.shape[1])); np.add.at(S, g, P)
+    return np.c_[S[g] / cnt[g, None], np.log(cnt[g])[:, None]].astype(np.float32)
 
 print("base (no graph):", best_null(P0_tr))
-cv(tr_pairs, "real soft graph (current)")
-for prec in [1.0, 0.7, 0.5]:
-    cv(synthetic_pairs(prec), f"synthetic successor precision {prec}")
+
+# %%
+# Real graph (chain v3 pairs, incl. assigned edges), hops 1-4 — reference
+HOPS = [1, 2, 4]
+X_real, _ = context(P0_tr, Ftr, tr_pairs, tr_vid, tr_sbj)
+cv(X_real, "real graph, hops 1-4")
+
+# %%
+# (A) perfect successor graph, long hops
+gi = np.where(nxt_ok)[0]
+perfect = pd.DataFrame({"gi": gi, "gj": gi + 1, "p": 1.0})
+HOPS = [1, 2, 4, 8, 16, 32, 64]
+X_perf, _ = context(P0_tr, Ftr, perfect, tr_vid, tr_sbj)
+cv(X_perf, "(A) perfect graph, hops 1-64")
+HOPS = [1, 2, 4]
+
+# %%
+# (B) oracle: mean base probs over the true segment (uses labels -> ceiling only)
+cv(np.c_[X_real, group_mean(P0_tr, seg)], "(B) real graph + oracle segment vote")
+
+# %%
+# (C) realistic: spectral clustering per subject on pair-prob graph + video kNN graph
+Wk_all = knn_graph(tr_vid, tr_sbj)
+_, _, Wb_all = pair_graphs(tr_pairs, T)
+def clusters(sbj_arr, Wb, Wk, div):
+    lab = np.zeros(len(sbj_arr), int); off = 0
+    for s in np.unique(sbj_arr):
+        idx = np.where(sbj_arr == s)[0]
+        A = Wb[idx][:, idx] + 0.5 * Wk[idx][:, idx]; A = ((A + A.T) / 2).tocsr()
+        k = max(5, len(idx) // div)
+        c = SpectralClustering(k, affinity="precomputed", assign_labels="cluster_qr", random_state=0).fit_predict(A)
+        lab[idx] = c + off; off += k
+    return lab
+
+feats = []
+for div in [20, 40, 80]:
+    t0 = time.time(); cl = clusters(tr_sbj, Wb_all, Wk_all, div)
+    maj = pd.Series(y).groupby(cl).agg(lambda v: v.value_counts().iloc[0] / len(v))
+    size = pd.Series(cl).value_counts()
+    nseg = pd.Series(seg).groupby(cl).nunique()
+    print(f"div {div}: clusters {cl.max()+1}, mean size {size.mean():.1f}, tile-weighted purity {(maj * size.reindex(maj.index)).sum() / T:.3f}, "
+          f"mean true segments per cluster {nseg.mean():.2f} ({time.time()-t0:.0f}s)", flush=True)
+    feats.append(group_mean(P0_tr, cl))
+    cv(np.c_[X_real, feats[-1]], f"(C) real graph + clusters div {div}")
+cv(np.c_[X_real, *feats], "(C) real graph + clusters div 20/40/80")
