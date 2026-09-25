@@ -1,0 +1,22 @@
+cpus 4 | prep dir /kaggle/input/notebooks/evelynyang02/wear-hasca-2026-prep
+video feats (69326, 145) 31s explained var (mean/cen): 0.764 0.735
+imu feats (69326, 102) 64s
+fold 0: sbj [np.int64(5), np.int64(14), np.int64(17), np.int64(21)] iters 188 F1 0.6063 (162s)
+fold 1: sbj [np.int64(0), np.int64(4), np.int64(9), np.int64(15)] iters 162 F1 0.5447 (155s)
+fold 2: sbj [np.int64(3), np.int64(7), np.int64(11), np.int64(12), np.int64(19)] iters 185 F1 0.6020 (161s)
+fold 3: sbj [np.int64(1), np.int64(8), np.int64(10), np.int64(16)] iters 220 F1 0.5890 (183s)
+fold 4: sbj [np.int64(2), np.int64(6), np.int64(13), np.int64(18), np.int64(20)] iters 249 F1 0.6395 (192s)
+OOF macro-F1: 0.6006
+null x0.3: 0.6606
+null x0.4: 0.6516
+null x0.5: 0.6427
+null x0.6: 0.6342
+null x0.7: 0.6254
+null x0.8: 0.6166
+null x0.9: 0.6083
+null x1.1: 0.5936
+null x1.3: 0.5799
+best null weight (0.3, 0.6605879326408651)
+per-class F1: {0: np.float64(0.774), 1: np.float64(0.811), 2: np.float64(0.725), 3: np.float64(0.756), 4: np.float64(0.792), 5: np.float64(0.77), 6: np.float64(0.58), 7: np.float64(0.542), 8: np.float64(0.401), 9: np.float64(0.755), 10: np.float64(0.831), 11: np.float64(0.566), 12: np.float64(0.534), 13: np.float64(0.636), 14: np.float64(0.656), 15: np.float64(0.644), 16: np.float64(0.559), 17: np.float64(0.694), 18: np.float64(0.527)}
+per-location F1: {'left_arm': 0.6435, 'left_leg': 0.6689, 'right_arm': 0.6555, 'right_leg': 0.6715}
+{0: 0.546, 1: 0.035, 2: 0.027, 3: 0.028, 4: 0.03, 5: 0.026, 6: 0.009, 7: 0.021, 8: 0.022, 9: 0.019, 10: 0.04, 11: 0.01, 12: 0.032, 13: 0.022, 14: 0.033, 15: 0.032, 16: 0.022, 17: 0.024, 18: 0.02}
