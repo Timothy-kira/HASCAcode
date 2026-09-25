@@ -16,7 +16,8 @@ Every scheme, its score and where its exact code lives.
 | 4 | 2026-09-25 | **stage2 v4** — stage2 v1 design with 2 bases averaged (LGBM + fusion NN) on chain v3 graph (soft pair graph + Hungarian-assigned edge hops 1–16) + video kNN, propagation α=0.7, null ×0.6 | `experiments/11_stage2_v4` (+ `08_fusion_v1`, `09_chain_v3`) | 0.806 | 0.81179 |
 | 5 | 2026-09-25 | **stage2 v5** — as v4 but 4 bases averaged (lgb, nn, lgb2, nn2; base avg OOF 0.700) | `experiments/14_stage2_v5` | 0.8067 | 0.79690 |
 | 6 | 2026-09-25 | **post v1** — stage2 v6 OOF/test probs → 1 propagation step (α=0.7) → per-subject Sinkhorn class-prior balancing towards null τ=0.45 / 18 activities equal, strength λ=1, null ×0.4 | `experiments/18_post_v1` (+ `17_stage2_v6`) | 0.840 | 0.85074 |
-| 7 | 2026-09-25 | **post v2** — free-null balancing (equalise the 18 activity shares per subject, null share left to the model), λ=1, 2 rounds of balance → propagate, null ×0.5 | `experiments/19_post_v2` (+ `17_stage2_v6`) | 0.855 | **0.87865** |
+| 7 | 2026-09-25 | **post v2** — free-null balancing (equalise the 18 activity shares per subject, null share left to the model), λ=1, 2 rounds of balance → propagate, null ×0.5 | `experiments/19_post_v2` (+ `17_stage2_v6`) | 0.855 | 0.87865 |
+| 8 | 2026-09-25 | **post v3** — post v2 applied on stage2 v7 (bases balanced before stacking): free-null balancing λ=1, 2 rounds balance → propagate, null ×0.6 | `experiments/21_post_v3` (+ `20_stage2_v7`) | 0.864 | **0.88865** |
 
 > Note: v4 → v5 had equal OOF (0.806 vs 0.807) but LB 0.812 vs 0.797 — public LB noise is about ±0.015; decide on OOF.
 
