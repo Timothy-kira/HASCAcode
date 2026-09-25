@@ -12,7 +12,8 @@ Every scheme, its score and where its exact code lives.
 |---|---|---|---|---|---|
 | 1 | 2026-09-24 | **baseline v1** — LightGBM on 102 hand-crafted single-sensor IMU features (left arm mirrored, location one-hot) + VideoMAE PCA (raw mean / subject-centred mean / std), train on 2 random sensors per tile, null prob ×0.3 | `experiments/01_baseline_v1` | 0.634 | 0.64641 |
 | 2 | 2026-09-24 | **knn v1** — baseline probs smoothed over within-subject successor graph (whitened VideoMAE last→first frame, top-3 succ + top-3 pred), α=0.8, 3 iters | `experiments/02_knn_v1` | 0.720 | 0.69442 |
-| 3 | 2026-09-24 | **stage2 v1** — graph-context stacking: learned pair model (chain v1) gives soft succ/pred graph; features = own probs & IMU + graph-aggregated probs (1/2/4 hops) & IMU + video-kNN aggregates → LightGBM, then 1 propagation step (α=0.5), null ×0.5 | `experiments/04_stage2_v1` (+ pairs from `03_chain_v1`) | 0.787 | **0.79079** |
+| 3 | 2026-09-24 | **stage2 v1** — graph-context stacking: learned pair model (chain v1) gives soft succ/pred graph; features = own probs & IMU + graph-aggregated probs (1/2/4 hops) & IMU + video-kNN aggregates → LightGBM, then 1 propagation step (α=0.5), null ×0.5 | `experiments/04_stage2_v1` (+ pairs from `03_chain_v1`) | 0.787 | 0.79079 |
+| 4 | 2026-09-25 | **stage2 v4** — stage2 v1 design with 2 bases averaged (LGBM + fusion NN) on chain v3 graph (soft pair graph + Hungarian-assigned edge hops 1–16) + video kNN, propagation α=0.7, null ×0.6 | `experiments/11_stage2_v4` (+ `08_fusion_v1`, `09_chain_v3`) | 0.806 | **0.81179** |
 
 ## Not submitted (experiments)
 
