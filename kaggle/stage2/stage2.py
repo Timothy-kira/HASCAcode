@@ -31,6 +31,21 @@ for f in sorted(glob.glob("/kaggle/input/**/oof_*.npy", recursive=True)):
     if os.path.exists(tf): bases.append((name, np.load(f), np.load(tf)))
 print("base models:", [b[0] for b in bases])
 P0_tr = np.mean([b[1] for b in bases], 0); P0_te = np.mean([b[2] for b in bases], 0)
+
+# Per-subject free-null class-prior balancing of the base probabilities (post v2 showed +0.05 OOF when applied
+# after stage2). Every subject performs all 18 activities in similar amounts; equalise activity shares, keep null free.
+BAL_BASE = True
+def balance(Pm, sbj, lam=1.0, iters=100):
+    out = Pm.copy()
+    for s in np.unique(sbj):
+        m = sbj == s; Q = Pm[m]; w = np.ones(Pm.shape[1])
+        for _ in range(iters):
+            Z = Q * w; Z /= Z.sum(1, keepdims=True); mean = Z.mean(0)
+            w *= (np.r_[mean[0], np.full(18, (1 - mean[0]) / 18)] / (mean + 1e-9)) ** 0.5; w /= w[0]
+        out[m] = Q * w ** lam
+    return out / out.sum(1, keepdims=True)
+if BAL_BASE:
+    P0_tr, P0_te = balance(P0_tr, tr_meta.sbj.values), balance(P0_te, te_meta.sbj_id.values)
 tr_pairs = pd.read_parquet(f"{C}/tr_pairs.parquet"); te_pairs = pd.read_parquet(f"{C}/te_pairs.parquet")
 # optional segment-context features from the supervised same-activity neighbour model (kaggle/segment)
 seg_files = glob.glob("/kaggle/input/**/tr_segctx.npy", recursive=True)
