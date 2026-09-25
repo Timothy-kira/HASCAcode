@@ -1,0 +1,14 @@
+base models: ['lgb', 'nn', 'nn2', 'lgb2']
+base avg (0.7003, 0.2)
+pairs (4159560, 24) base rate same-label 0.575 107s
+same-label AUC 0.9022
+  p>=0.5: 0.626 of pairs, precision 0.825, mean #nbrs/tile 37.5
+  p>=0.7: 0.501 of pairs, precision 0.878, mean #nbrs/tile 30.1
+  p>=0.9: 0.244 of pairs, precision 0.947, mean #nbrs/tile 14.6
+{'p_l1': 10389898.0, 'p_dot': 2242741.0, 'w_succ': 1753961.0, 's_mean': 731943.0, 'p_same': 615128.0, 'p_null_i': 349288.0, 'p_null_j': 307692.0, 's_imu': 267242.0, 's_ll': 187751.0, 'p_max_i': 143653.0, 'p_max_j': 129492.0, 'rank_ji': 129485.0, 's_ff': 114241.0, 's_fl': 107895.0, 's_lf': 105499.0, 'gap': 102002.0, 'rank_ij': 76660.0, 'loc_j': 15777.0, 'same_loc': 15642.0, 'loc_i': 15313.0}
+seg_g1_h1: direct argmax OOF (0.7444, 0.2)
+seg_g4_h1: direct argmax OOF (0.7503, 0.2)
+seg_g16_h1: direct argmax OOF (0.7483, 0.2)
+seg_g4_h2: direct argmax OOF (0.7557, 0.2)
+seg_t0.9: direct argmax OOF (0.7356, 0.2)
+test mean p 0.583 | train mean p 0.576
