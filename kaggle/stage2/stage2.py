@@ -32,6 +32,13 @@ for f in sorted(glob.glob("/kaggle/input/**/oof_*.npy", recursive=True)):
 print("base models:", [b[0] for b in bases])
 P0_tr = np.mean([b[1] for b in bases], 0); P0_te = np.mean([b[2] for b in bases], 0)
 tr_pairs = pd.read_parquet(f"{C}/tr_pairs.parquet"); te_pairs = pd.read_parquet(f"{C}/te_pairs.parquet")
+# optional segment-context features from the supervised same-activity neighbour model (kaggle/segment)
+seg_files = glob.glob("/kaggle/input/**/tr_segctx.npy", recursive=True)
+if seg_files:
+    Sd = os.path.dirname(seg_files[0])
+    SEG_tr, SEG_te = np.load(f"{Sd}/tr_segctx.npy"), np.load(f"{Sd}/te_segctx.npy")
+    SEG_names = pd.read_csv(f"{Sd}/segctx_names.csv").iloc[:, 0].tolist()
+    print("segment context features:", SEG_tr.shape)
 
 # %%
 def imu_feats(X, loc):  # same as baseline
@@ -106,6 +113,7 @@ params = dict(objective="multiclass", num_class=19, learning_rate=0.05, num_leav
 def stack_round(Ptr, Pte, r):
     t0 = time.time()
     Xtr, names = context(Ptr, Ftr, tr_pairs, tr_vid, tr_sbj); Xte, _ = context(Pte, Fte, te_pairs, te_vid, te_sbj)
+    if seg_files: Xtr, Xte, names = np.c_[Xtr, SEG_tr], np.c_[Xte, SEG_te], names + SEG_names
     print(f"round {r}: feats {Xtr.shape} ({time.time()-t0:.0f}s)")
     oof2 = np.zeros((T, 19), np.float32); pte2 = np.zeros((N, 19), np.float32)
     for k, (tri, vai) in enumerate(GroupKFold(5).split(Xtr, y, tr_sbj)):
