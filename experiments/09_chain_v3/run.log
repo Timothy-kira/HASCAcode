@@ -1,0 +1,12 @@
+embeddings 67s
+raw top1: plain 0.32 | ridge-predicted 0.293
+pairs (3492585, 30) recall@cand 0.872 215s
+pair AUC 0.9395
+reranked top1 successor acc (all tiles): 0.4266
+{'r1_col': 537047.0, 'r1_row': 531711.0, 'imu_gap': 204601.0, 's_self_i': 80055.0, 'gap1_col': 76503.0, 'gap1_row': 74066.0, 'r2_row': 73725.0, 's_raw': 72597.0, 'mag_edge_diff': 71291.0, 's_self_j': 52921.0, 'mag_mean_diff': 52879.0, 's_mean': 48329.0, 'p_null_j': 43045.0, 's_inner': 41195.0, 'mag_std_diff': 37491.0, 'p_null_i': 36341.0, 'gap2_row': 35762.0, 'p_dot': 35648.0, 's2': 29652.0, 's1': 26936.0, 'gap2_col': 23698.0, 'p_l1': 22057.0, 'r2_col': 20894.0, 'loc_i': 6772.0, 'loc_j': 3498.0, 'same_loc': 2996.0}
+assignment (17s): edges 69326 precision 0.4319 recall 0.4321
+  assigned & p>=0.05: edges 59522 precision 0.4896 recall 0.4205
+  assigned & p>=0.1: edges 50382 precision 0.5480 recall 0.3984
+  assigned & p>=0.2: edges 39224 precision 0.6250 recall 0.3537
+  assigned & p>=0.3: edges 31872 precision 0.6842 recall 0.3147
+test pairs (616575, 31) assigned 12234 mean p of assigned 0.336 | train mean p of assigned 0.347

@@ -23,13 +23,7 @@ Every scheme, its score and where its exact code lives.
 | 03 | chain v1 — LightGBM pair model (K=30) + greedy hard chains + smoothing along chains | `experiments/03_chain_v1` | pair AUC 0.922, top1 succ 0.42; OOF 0.7135 | hard chains worse than soft graph; pair probs reused by stage2 |
 | 06 | chain v2 — K=50 candidates + base-probability agreement pair features | `experiments/06_chain_v2` | pair AUC 0.943 (v1 0.922), recall@K 0.86, top1 succ 0.427; chain-smoothing OOF 0.7184 | small gain; pairs feed stage2 v3 |
 | 07 | stage2 v3 — stage2 v1 config (hops 1–4, 1 round) on chain v2 pairs | `experiments/07_stage2_v3` | OOF 0.7792 → 0.7886 after propagation (v1: 0.7819 → 0.7872) | ≈ tie; better pair AUC alone does not move stage2 → not submitted |
+| 08 | fusion v1 — IMU 1D-CNN + loc embedding + VideoMAE (subject-centred) temporal branch, rotation/scale/jitter aug, modality dropout, 14 epochs | `experiments/08_fusion_v1` | OOF 0.629 raw / 0.649 (null ×0.2); LGBM 0.645 | on par with LGBM, different model → use as 2nd base in stage2 |
+| 09 | chain v3 — ridge next-frame predictor + union candidates + Hungarian one-to-one assignment | `experiments/09_chain_v3` | ridge top1 0.293 (< plain 0.32); pair AUC 0.9395; assignment precision 0.432 | successor precision plateaus ~43% with video similarity; dead end |
+| 10 | diag v1 — stage2 with synthetic successor graphs of controlled precision (hops 1–4) | `experiments/10_diag_v1` | no graph 0.643 · real 0.779 · prec 0.5 → 0.786 · 0.7 → 0.794 · 1.0 → **0.817** | with ≤4-hop context even a perfect graph caps at 0.817 → need long-range (segment-level) context |
 | 05 | stage2 v2 — hops up to 16 + 2nd stacking round | `experiments/05_stage2_v2` | round1 0.7767 → 0.7829 after prop; round2 0.7605 | worse than v1 → reverted to hops 1–4, 1 round |
-
-## Paused (2026-09-24) — kernels left running on Kaggle, results not yet read
-- fusion v1 (`kaggle/fusion`, commit 4aecb4f): IMU 1D-CNN + VideoMAE temporal branch NN → outputs `oof_nn.npy` / `te_nn.npy`.
-- chain v3 (`kaggle/timeline/chain`, commit 0c4b9b7): ridge next-frame predictor + union candidates + Hungarian assignment.
-- diag v1 (`kaggle/diag`): stage2 OOF vs synthetic timeline-graph precision (oracle 1.0 / 0.7 / 0.5) to find the bottleneck.
-
-Next when resuming: read the three logs (`kaggle/fetchlog.sh wear-hasca-2026-<name>`), snapshot them into `experiments/`,
-then decide from diag whether to focus on the timeline graph or on the base model; rerun stage2 with fusion probs
-(add `evelynyang02/wear-hasca-2026-fusion` to `kaggle/stage2/kernel-metadata.json` kernel_sources).

@@ -1,0 +1,8 @@
+base models: ['lgb']
+imu feats (69326, 99) 6s
+real graph: top1 successor precision 0.427
+base (no graph): (0.6426, 0.2)
+real soft graph (current): stage2 OOF (0.7792, 0.5)
+synthetic successor precision 1.0: stage2 OOF (0.8168, 0.5)
+synthetic successor precision 0.7: stage2 OOF (0.7942, 0.6)
+synthetic successor precision 0.5: stage2 OOF (0.786, 0.6)
