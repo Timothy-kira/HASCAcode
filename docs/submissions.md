@@ -40,3 +40,9 @@ Every scheme, its score and where its exact code lives.
 | 17 | stage2 v6 — v5 + 154 segment-context features (segment v1) | `experiments/17_stage2_v6` | OOF 0.799 → 0.8065 after propagation (v5 0.8067) | no gain: segment features redundant with graph features → stage2 saturated ≈0.806 |
 | 20 | stage2 v7 — v6 with per-subject free-null balancing of the base probs before building context | `experiments/20_stage2_v7` | base avg 0.700 → 0.724; stage2 OOF 0.8256 → **0.830** after propagation (v6 0.8065) | +0.024 → post v3 runs on top |
 | 05 | stage2 v2 — hops up to 16 + 2nd stacking round | `experiments/05_stage2_v2` | round1 0.7767 → 0.7829 after prop; round2 0.7605 | worse than v1 → reverted to hops 1–4, 1 round |
+
+## Public notebook
+- **baseline v1 repro** — https://www.kaggle.com/code/evelynyang02/wear-hasca-2026-baseline-v1-repro (public, 2026-09-29).
+  Self-contained (tile prep + LightGBM baseline v1), source in `kaggle/baseline_public/`. Regenerates `eval_loc.npy`, `oof_lgb.npy`, `te_lgb.npy`
+  (names must match: stage2 pairs `oof_<name>.npy` with `te_<name>.npy`). Verified bit-identical (max abs diff 0.0) against the original baseline v1 outputs.
+
